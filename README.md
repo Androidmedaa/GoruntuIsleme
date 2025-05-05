@@ -1,6 +1,10 @@
-datasets klassoru altında resimler bulunmalı ve cizim/datasets/ şeklinde olmalı
-dataset link: https://www.kaggle.com/datasets/reevald/geometric-shapes-mathematics
-ayrıca model linki: https://drive.google.com/file/d/1A26vb3UVorGrpzWJS1aSfMtJHsCkXyvC/view?usp=sharing
+datasets klassoru altında resimler bulunmalı ve cizim/datasets/ şeklinde olmalı  
+
+dataset link: https://www.kaggle.com/datasets/reevald/geometric-shapes-mathematics  
+
+ayrıca model linki: https://drive.google.com/file/d/1A26vb3UVorGrpzWJS1aSfMtJHsCkXyvC/view?usp=sharing  
+
+
 Burdan modeli, my_model.keras cizim klasorunde olucak
 
 cizim/  
