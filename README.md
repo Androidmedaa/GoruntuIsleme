@@ -4,12 +4,12 @@ ayrıca model linki: https://drive.google.com/file/d/1A26vb3UVorGrpzWJS1aSfMtJHs
 Burdan modeli, my_model.keras cizim klasorunde olucak
 
 cizim/
-      my_model.keras
-      index.html
-      datasets/
-      app.py
-      .gitignore/
-      .git/
-      .vs/
-      styles.css
-      script.js
+      my_model.keras\n
+      index.html\n
+      datasets/\n
+      app.py\n
+      .gitignore/\n
+      .git/\n
+      .vs/\n
+      styles.css\n
+      script.js\n
