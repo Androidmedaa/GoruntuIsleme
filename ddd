@@ -1,0 +1,391 @@
+# Etik, Güvenlik ve Lisans Değerlendirmesi
+
+Bu dokümanda SEMA AI Summarizer projesinin etik, güvenlik ve lisans açısından değerlendirmesi yapılmaktadır.
+
+---
+
+## 1. Kod Lisansı Riski
+
+### Mevcut Durum
+
+**Ana Proje Lisansı**: MIT License
+- ✅ MIT lisansı açık kaynak ve ticari kullanıma uygundur
+- ✅ Yüksek uyumluluk oranı, çoğu lisansla uyumlu
+
+**Bağımlılık Lisansları Analizi**:
+
+| Lisans Tipi | Sayı | Risk Seviyesi | Açıklama |
+|------------|------|---------------|----------|
+| MIT | ~150+ | ✅ Düşük | Ticari kullanıma açık, minimal kısıtlama |
+| Apache-2.0 | ~30+ | ✅ Düşük | Ticari kullanıma açık, patent koruması |
+| BSD-2/3-Clause | ~10+ | ✅ Düşük | Ticari kullanıma açık |
+| ISC | ~5+ | ✅ Düşük | MIT benzeri, ticari kullanıma açık |
+| GPL-3.0 | 0 | ✅ Yok | Copyleft lisansı yok |
+
+### Risk Değerlendirmesi
+
+**✅ Düşük Risk**
+- Tüm bağımlılıklar permissive lisanslara sahip
+- GPL gibi copyleft lisansları yok
+- Ticari kullanım için uygun
+- Lisans uyumsuzluğu riski minimal
+
+**Öneriler**:
+- Bağımlılık eklerken lisans uyumluluğunu kontrol edin
+- `npm audit` ile lisans uyumsuzluklarını düzenli kontrol edin
+- Production'da `license-checker` gibi araçlar kullanılabilir
+
+---
+
+## 2. Veri Gizliliği
+
+### Mevcut Durum
+
+#### ✅ İyi Uygulamalar
+
+1. **Şifre Güvenliği**
+   - Şifreler `bcryptjs` ile hashleniyor (salt rounds: 10)
+   - Düz metin şifre saklanmıyor
+   - Minimum şifre uzunluğu kontrolü var (6 karakter)
+
+2. **Token Yönetimi**
+   - JWT token'ları kullanılıyor
+   - Token expiration süresi: 7 gün
+   - Token'lar localStorage'da saklanıyor (frontend)
+
+3. **Firebase Entegrasyonu**
+   - Firebase Authentication kullanılıyor
+   - Firestore güvenlik kuralları uygulanabilir
+   - Kullanıcı verileri Firebase'de saklanıyor
+
+#### ⚠️ Risk Alanları
+
+1. **Hardcoded Firebase Credentials**
+   ```javascript
+   // frontend/src/firebase/config.js
+   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDFfT47L8vSRgc2GieoDGAUY1V025N5YVs"
+   ```
+   - **Risk**: Firebase API key'i kod içinde hardcoded
+   - **Etki**: API key ifşa olabilir, rate limiting bypass edilebilir
+   - **Öneri**: Fallback değeri kaldırılmalı, sadece environment variable kullanılmalı
+
+2. **Kullanıcı Verilerinin JSON Dosyasında Saklanması**
+   ```javascript
+   // backend/routes/auth.js
+   const usersFile = path.join(dataDir, 'users.json')
+   ```
+   - **Risk**: Kullanıcı verileri düz JSON dosyasında saklanıyor
+   - **Etki**: Veri sızıntısı, yetkisiz erişim riski
+   - **Öneri**: Tüm kullanıcı verileri Firebase'e taşınmalı, JSON dosyası sadece geçici/backup için kullanılmalı
+
+3. **Token Storage**
+   - Token'lar localStorage'da saklanıyor
+   - **Risk**: XSS saldırılarına karşı savunmasız
+   - **Öneri**: HttpOnly cookie'ler veya sessionStorage kullanılabilir
+
+4. **Veri Şifreleme**
+   - Yüklenen dosyalar şifrelenmeden saklanıyor
+   - **Risk**: Dosya içeriği yetkisiz erişimde okunabilir
+   - **Öneri**: Hassas dosyalar için encryption eklenebilir
+
+### GDPR/KVKK Uyumluluğu
+
+**Eksikler**:
+- ❌ Kullanıcı veri silme mekanizması yok
+- ❌ Veri dışa aktarma özelliği yok
+- ❌ Gizlilik politikası yok
+- ❌ Kullanıcı onay mekanizması yok
+
+**Öneriler**:
+- Kullanıcı verilerini silme endpoint'i eklenmeli
+- Gizlilik politikası sayfası oluşturulmalı
+- Cookie consent mekanizması eklenebilir
+
+---
+
+## 3. Güvenlik Açıkları
+
+### Kritik Güvenlik Sorunları
+
+#### 🔴 Yüksek Öncelikli
+
+1. **Default JWT Secret**
+   ```javascript
+   // backend/routes/auth.js
+   const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+   ```
+   - **Risk**: Production'da default secret kullanılırsa token'lar kolayca çözülebilir
+   - **Etki**: Tüm kullanıcı hesaplarına yetkisiz erişim
+   - **Öneri**: Environment variable zorunlu yapılmalı, default değer kaldırılmalı
+
+2. **CORS Yapılandırması**
+   ```javascript
+   // backend/server.js
+   origin: ['http://localhost:3000', 'http://localhost:3001', ...]
+   ```
+   - **Risk**: Geliştirme URL'leri production'da kalabilir
+   - **Etki**: CSRF saldırıları, yetkisiz origin'lerden istek
+   - **Öneri**: Environment variable ile CORS origin'leri yönetilmeli
+
+3. **File Upload Güvenliği**
+   - Dosya tipi kontrolü var (PDF, TXT)
+   - Dosya boyutu limiti var (10MB)
+   - **Eksik**: Dosya içeriği doğrulaması yok
+   - **Risk**: Zararlı içerik yüklenebilir
+   - **Öneri**: Virus scanning, content validation eklenebilir
+
+#### 🟡 Orta Öncelikli
+
+4. **Rate Limiting**
+   - API endpoint'lerinde rate limiting yok
+   - **Risk**: DDoS saldırıları, brute force saldırıları
+   - **Öneri**: `express-rate-limit` middleware eklenmeli
+
+5. **Input Validation**
+   - Bazı endpoint'lerde input validation eksik
+   - **Risk**: Injection saldırıları, XSS
+   - **Öneri**: `joi` veya `express-validator` kullanılmalı
+
+6. **Error Handling**
+   - Hata mesajları detaylı bilgi içerebiliyor
+   - **Risk**: Bilgi sızıntısı, sistem yapısının ifşası
+   - **Öneri**: Production'da generic error mesajları gösterilmeli
+
+7. **Logging ve Monitoring**
+   - Güvenlik olayları loglanmıyor
+   - **Risk**: Saldırı tespiti yapılamaz
+   - **Öneri**: Security event logging eklenmeli
+
+#### 🟢 Düşük Öncelikli
+
+8. **HTTPS Zorunluluğu**
+   - Development'ta HTTP kullanılıyor
+   - **Risk**: Production'da HTTPS zorunlu olmalı
+   - **Öneri**: HTTPS redirect middleware eklenmeli
+
+9. **Security Headers**
+   - Security header'lar eksik
+   - **Risk**: XSS, clickjacking saldırıları
+   - **Öneri**: `helmet` middleware eklenmeli
+
+### Güvenlik Önerileri Özeti
+
+| Öncelik | Güvenlik Önlemi | Durum |
+|---------|----------------|-------|
+| 🔴 Yüksek | JWT Secret zorunlu yapılmalı | ❌ Eksik |
+| 🔴 Yüksek | CORS environment variable ile yönetilmeli | ❌ Eksik |
+| 🔴 Yüksek | File content validation | ❌ Eksik |
+| 🟡 Orta | Rate limiting | ❌ Eksik |
+| 🟡 Orta | Input validation | ⚠️ Kısmi |
+| 🟡 Orta | Error handling iyileştirmesi | ⚠️ Kısmi |
+| 🟢 Düşük | HTTPS zorunluluğu | ⚠️ Production'da gerekli |
+| 🟢 Düşük | Security headers | ❌ Eksik |
+
+---
+
+## 4. AI Hallucination Örnekleri ve Riskleri
+
+### Mevcut AI Kullanımı
+
+Projede Google Gemini API kullanılarak şu özellikler sunuluyor:
+- Doküman özetleme (kısa ve detaylı)
+- Soru-cevap sistemi
+- Metin özetleme
+- Anahtar kelime çıkarımı
+- Podcast script oluşturma
+
+### Hallucination Risk Analizi
+
+#### 🔴 Yüksek Risk Alanları
+
+1. **Özetleme İşlemleri**
+   ```javascript
+   // backend/services/aiService.js
+   const summaryData = await generateSummary(text)
+   ```
+   - **Risk**: AI, kaynak metinde olmayan bilgileri özete ekleyebilir
+   - **Etki**: Yanlış bilgi yayılması, güven kaybı
+   - **Örnek Senaryo**: 
+     - Kullanıcı bir araştırma makalesini özetletiyor
+     - AI, makalede olmayan bir sonucu özete ekliyor
+     - Kullanıcı yanlış bilgiyi doğru sanıyor
+
+2. **Soru-Cevap Sistemi**
+   ```javascript
+   // backend/services/aiService.js
+   const answer = await askQuestion(question, relevantDocs)
+   ```
+   - **Risk**: AI, dokümanlarda olmayan cevaplar üretebilir
+   - **Etki**: Yanlış bilgi verme, yasal sorunlar
+   - **Örnek Senaryo**:
+     - Kullanıcı: "Bu dokümanlarda hangi ilaçlar bahsediliyor?"
+     - AI: Dokümanlarda bahsedilmeyen bir ilaç ismi söyleyebilir
+     - Tıbbi yanlış bilgi riski
+
+3. **Metin Özetleme**
+   - **Risk**: Kullanıcı girdisi doğrulanmıyor
+   - **Etki**: Yanlış özet, bağlam kaybı
+   - **Örnek Senaryo**:
+     - Kullanıcı yanlış/eksik metin yapıştırıyor
+     - AI bu metni özetliyor ama bağlamı yanlış anlıyor
+     - Özet gerçek içeriği yansıtmıyor
+
+#### 🟡 Orta Risk Alanları
+
+4. **Anahtar Kelime Çıkarımı**
+   - **Risk**: İlgisiz anahtar kelimeler çıkarılabilir
+   - **Etki**: Arama sonuçlarında hata
+   - **Önlem**: Basit keyword extraction fallback mekanizması var
+
+5. **Podcast Script Oluşturma**
+   - **Risk**: Senaryoda olmayan diyaloglar eklenebilir
+   - **Etki**: İçerik doğruluğu kaybı
+   - **Önlem**: Prompt'ta "doğrudan ver" talimatı var
+
+### Mevcut Hallucination Kontrol Mekanizmaları
+
+#### ✅ Var Olanlar
+
+1. **Fallback Mekanizması**
+   ```javascript
+   // AI başarısız olursa basit özet kullanılıyor
+   shortSummary: simpleSummary(text, 150)
+   ```
+
+2. **Prompt Engineering**
+   - "Özeti doğrudan ver, başlık veya format etiketi kullanma" talimatı
+   - "Cümleler tamamlanmış ve anlamlı olmalı" kontrolü
+
+3. **Text Length Validation**
+   - Metin uzunluğu kontrol ediliyor
+   - Çok kısa metinler için uyarı veriliyor
+
+#### ❌ Eksik Olanlar
+
+1. **Kaynak Doğrulama**
+   - AI cevaplarının hangi dokümandan geldiği gösteriliyor
+   - Ancak cevabın dokümanda gerçekten olup olmadığı kontrol edilmiyor
+
+2. **Confidence Score**
+   - AI'ın cevabına ne kadar güvendiği gösterilmiyor
+   - Düşük güvenilirlikli cevaplar için uyarı yok
+
+3. **Fact-Checking**
+   - AI çıktıları doğrulanmıyor
+   - Gerçeklik kontrolü yapılmıyor
+
+4. **User Feedback Loop**
+   - Kullanıcılar yanlış cevapları işaretleyemiyor
+   - Hata geri bildirimi mekanizması yok
+
+### Hallucination Önleme Önerileri
+
+| Önlem | Öncelik | Zorluk | Açıklama |
+|-------|---------|--------|----------|
+| Kaynak doğrulama | 🔴 Yüksek | Orta | AI cevaplarının kaynak metinde olup olmadığını kontrol et |
+| Confidence score | 🟡 Orta | Kolay | AI'dan güven skoru al ve düşük skorlarda uyarı göster |
+| Fact-checking | 🟡 Orta | Zor | Önemli iddiaları doğrula |
+| User feedback | 🟢 Düşük | Kolay | Kullanıcılardan geri bildirim al |
+| Prompt iyileştirme | 🟡 Orta | Kolay | "Sadece dokümanlarda olan bilgileri kullan" talimatı ekle |
+
+### Örnek Hallucination Senaryoları
+
+**Senaryo 1: Tıbbi Doküman Özetleme**
+```
+Kullanıcı: Bir ilaç prospektüsünü özetletiyor
+AI Hallucination: Prospektüste olmayan bir yan etkiyi özete ekliyor
+Risk: Yasal sorumluluk, sağlık riski
+```
+
+**Senaryo 2: Hukuki Doküman Sorgulama**
+```
+Kullanıcı: "Bu sözleşmede hangi maddeler var?"
+AI Hallucination: Sözleşmede olmayan bir maddeyi listeye ekliyor
+Risk: Yasal yanlış anlama, mali kayıp
+```
+
+**Senaryo 3: Akademik Makale Özetleme**
+```
+Kullanıcı: Bir araştırma makalesini özetletiyor
+AI Hallucination: Makalede olmayan bir sonucu özete ekliyor
+Risk: Akademik dürüstlük ihlali, yanlış bilgi yayılması
+```
+
+---
+
+## 5. Genel Değerlendirme ve Öneriler
+
+### Güvenlik Skoru: 6/10
+
+**Güçlü Yönler**:
+- ✅ Şifre hashleme (bcrypt)
+- ✅ JWT token kullanımı
+- ✅ Firebase entegrasyonu
+- ✅ Dosya tipi ve boyut kontrolü
+- ✅ Environment variable kullanımı (kısmi)
+
+**Zayıf Yönler**:
+- ❌ Hardcoded credentials
+- ❌ Default JWT secret
+- ❌ Rate limiting yok
+- ❌ Input validation eksik
+- ❌ Security headers yok
+
+### Etik Skoru: 7/10
+
+**Güçlü Yönler**:
+- ✅ Kullanıcı verileri şifreleniyor
+- ✅ AI kullanımı şeffaf
+- ✅ Kullanıcı kontrolü var
+
+**Zayıf Yönler**:
+- ❌ GDPR/KVKK uyumluluğu eksik
+- ❌ Hallucination kontrolü yok
+- ❌ Kullanıcı veri silme mekanizması yok
+
+### Lisans Skoru: 10/10
+
+**Mükemmel**:
+- ✅ Tüm bağımlılıklar permissive lisanslı
+- ✅ Ticari kullanıma uygun
+- ✅ Lisans uyumsuzluğu riski yok
+
+---
+
+## 6. Acil Eylem Planı
+
+### Öncelik 1 (Hemen Yapılmalı)
+1. Hardcoded Firebase credentials kaldırılmalı
+2. Default JWT secret kaldırılmalı, zorunlu yapılmalı
+3. CORS environment variable ile yönetilmeli
+
+### Öncelik 2 (Kısa Vadede)
+4. Rate limiting eklenmeli
+5. Input validation iyileştirilmeli
+6. Security headers eklenmeli (helmet)
+7. AI hallucination kontrolü eklenmeli
+
+### Öncelik 3 (Orta Vadede)
+8. GDPR/KVKK uyumluluğu sağlanmalı
+9. Kullanıcı veri silme mekanizması eklenmeli
+10. Fact-checking mekanizması eklenmeli
+11. User feedback loop oluşturulmalı
+
+---
+
+## 7. Sonuç
+
+SEMA AI Summarizer projesi, temel güvenlik önlemlerini içermektedir ancak production kullanımı için önemli iyileştirmeler gereklidir. Özellikle:
+
+- **Güvenlik**: Kritik güvenlik açıkları kapatılmalı
+- **Veri Gizliliği**: GDPR/KVKK uyumluluğu sağlanmalı
+- **AI Güvenilirliği**: Hallucination kontrol mekanizmaları eklenmeli
+- **Lisans**: Mevcut durum mükemmel, korunmalı
+
+Proje, bu iyileştirmeler yapıldıktan sonra production ortamında güvenle kullanılabilir.
+
+---
+
+**Hazırlayan**: AI Assistant  
+**Tarih**: 2026-01-13  
+**Versiyon**: 1.0
